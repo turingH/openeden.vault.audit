@@ -1,0 +1,58 @@
+{
+  "KycManager": {
+    "goerli": "0x595C85aD2A9e1A7101002CF1e66f9830e5903Fd9",
+    "eth_main": "0x51Be497AcEd1a2C19f6151064301e356B020D947",
+    "arbitrum_one": "0x0d7690bAa1008c8d3C5dae9D5033FF846738BAfB"
+  },
+  "FeeManager": {
+    "goerli": "0x571804E1675d6e0331Dd6ecA0DBb97157f985927",
+    "eth_main": "0x99C913B3cBDdCFC7eD49Ff19B00704286a4B3b6B",
+    "arbitrum_one": "0x965738d072F2a37fEE9DFf572Bf517068cFFEa39"
+  },
+  "Controller": {
+    "goerli": "0x886EAAf94a99c24C1672B5d588e9C27f94C21F3e",
+    "eth_main": "0x377de6729507Bb0E56E0AAC666bd8522E4A3fe41",
+    "arbitrum_one": "0xC6773ba1Ff30Cc9b14972225924a21FF7fDCd01F"
+  },
+  "TBillPriceFeed": {
+    "goerli": "0x491023751c12C62B132ec3D0589FaEBB54C514EC",
+    "eth_main": "0xCe9a6626Eb99eaeA829D7fA613d5D0A2eaE45F40",
+    "arbitrum_one": "0xc0952c8ba068c887B675B4182F3A65420D045F46"
+  },
+  "TimeLock": {
+    "goerli": "0xaC7aaeF1AFB8b1B5465180C3D0606496cF50A339",
+    "eth_main": "0x8Bb125BA9A0429583dfc3FCF295636A6cC8e9dc0",
+    "arbitrum_one": "0x35235bFbe1662A095034BA81154cdeA291b733c8"
+  },
+  "VaultProxy": {
+    "goerli": "0x752Bc7cb69Dec2669aB4274dE2C016979DB1f19B",
+    "eth_main": "0xdd50C053C096CB04A3e3362E2b622529EC5f2e8a",
+    "arbitrum_one": "0xF84D28A8D28292842dD73D1c5F99476A80b6666A"
+  },
+  "MockUSDC": {
+    "sepolia": "0xd075D2072e5B5F76cC1Df02E4F57d8f3402C8A84"
+  },
+  "VaultV3Impl": {
+    "arbitrum_sepolia": "0x98971A3896e9Ec4F97fc6A2CB4468631726c7EDB",
+    "goerli": "0xea5E41Da9d9925eF6654799C0f56F5453511A2b3",
+    "sepolia": "0xCEB520802126359C9E6289233154EBce54470ca0",
+    "eth_main": "0xcD2f1a0bA6E7b0FC39B4c44b77C84360f20FD6AE",
+    "arbitrum_one": "0xf0a04F0d77167f4fd11a66c7CC01E7216fcc6683"
+  },
+  "PartnerShip": {
+    "eth_main": "0xE97fabdc6B7606D7C3362E694a20295df7B70483",
+    "arbitrum_one": "0xE97fabdc6B7606D7C3362E694a20295df7B70483"
+  },
+  "VaultV4Impl": {
+    "sepolia": "0x5b06E34b745310231D367c460a17659E1F24e9AC",
+    "arbitrum_sepolia": "0x857939bc325c89eC0C2437a1b1736b742F9364de"
+  },
+  "MockBUIDL": {
+    "sepolia": "0xD98987156509aFa60D63F7daDB857bb5300225f5",
+    "arbitrum_sepolia": "0xf64Bb4de9ebc56e37fe4e5e11FfbF19164312262"
+  },
+  "MockBuidlRedemption": {
+    "sepolia": "0xd7745d70674D4D01157E14d9995551c47e52ca0A",
+    "arbitrum_sepolia": "0xAA5eE40f424Cc72f72eb413ee79DD8e46dCa90E7"
+  }
+}
