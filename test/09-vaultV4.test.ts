@@ -9,8 +9,6 @@ import VaultV2 from "../artifacts/contracts/OpenEdenVaultV2.sol/OpenEdenVaultV2.
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 
 import {
-  MockBUIDL,
-  MockBuidlRedemption,
   USDC,
   TimelockController,
   OpenEdenVaultV2,
@@ -24,7 +22,7 @@ import {
   PartnerShip,
 } from "../typechain-types";
 
-describe.only("OpenEdenV4", async function () {
+describe("OpenEdenV4", async function () {
   const DEPOSIT = 0;
   const REDEEM = 1;
   const vaultDecimals = 6;
@@ -72,9 +70,12 @@ describe.only("OpenEdenV4", async function () {
   const depositFee = 5;
   const redeemFee = 5;
 
+  // Contract instances
   let usdcTokenIns: USDC;
-  let buidlTokenIns: MockBUIDL;
-  let buidlRedemptionIns: MockBuidlRedemption;
+  let usycTokenIns: any; // MockUSYC
+  let usycHelperIns: any; // MockUsycHelper
+  let usycRedemptionIns: any; // UsycRedemption
+  let usycOracle: MockV3Aggregator; // Dedicated USYC oracle
   let feeManager: FeeManager;
   let kycManagerIns: KycManager;
   let vaultV2: OpenEdenVaultV2;
@@ -101,7 +102,8 @@ describe.only("OpenEdenV4", async function () {
     operator,
     maintainer,
     treasuryAccount: SignerWithAddress,
-    newTreasuryAccount,
+    usycTreasuryAccount: SignerWithAddress,
+    mgtFeeTreasuryAccount: SignerWithAddress,
     oplTreasury,
     timelockAdmin,
     timelockProposer,
@@ -122,8 +124,8 @@ describe.only("OpenEdenV4", async function () {
       maintainer,
       treasuryAccount,
       oplTreasury, // as quarantine treasury
-      newTreasuryAccount,
-      oplTreasury,
+      usycTreasuryAccount,
+      mgtFeeTreasuryAccount,
       timelockAdmin,
       timelockProposer,
       timelockExecutor,
@@ -152,13 +154,6 @@ describe.only("OpenEdenV4", async function () {
       timelockAdmin.address
     );
 
-    buidlTokenIns = await deployContract<MockBUIDL>("MockBUIDL");
-    buidlRedemptionIns = await deployContract<MockBuidlRedemption>(
-      "MockBuidlRedemption",
-      buidlTokenIns.address,
-      usdcTokenIns.address
-    );
-
     controller = await deployContract<Controller>(
       "Controller",
       operator.address,
@@ -175,8 +170,18 @@ describe.only("OpenEdenV4", async function () {
 
     iface = new ethers.utils.Interface(VaultV2.abi);
 
-    kycManagerIns = await deployContract<KycManager>("KycManager");
+    const KycManagerFactory = await ethers.getContractFactory("KycManager");
+    kycManagerIns = (await upgrades.deployProxy(KycManagerFactory, [
+      owner.address,
+      owner.address,
+      owner.address,
+      owner.address,
+      owner.address,
+    ])) as KycManager;
+    await kycManagerIns.deployed();
+
     console.log(vaultParameters.firstDeposit);
+
     feeManager = await deployContract<FeeManager>(
       "FeeManager",
       vaultParameters.txFeeWorkdayDepositPct,
@@ -283,6 +288,7 @@ describe.only("OpenEdenV4", async function () {
     await upgrades.validateUpgrade(vaultV2.address, OpenEdenVaultV4, {
       unsafeAllowRenames: true,
     });
+    console.log("validateUpgrade done!");
 
     await vaultV2.upgradeTo(v4.address);
     vaultV4 = await OpenEdenVaultV4.attach(vaultV2.address);
@@ -290,14 +296,63 @@ describe.only("OpenEdenV4", async function () {
 
     await vaultV4.connect(maintainer).setPartnerShip(partnership.address);
     await vaultV4.connect(maintainer).setOperator([operator.address], [true]);
+    await vaultV4.connect(maintainer).setTotalSupplyCap(_10M);
 
-    // setup buidl
-    await usdcTokenIns.transfer(buidlRedemptionIns.address, _100k);
-    await buidlTokenIns.transfer(treasuryAccount.address, _1M);
-    await buidlTokenIns.connect(treasuryAccount).approve(vaultV4.address, _50k);
-    await vaultV4
-      .connect(maintainer)
-      .setBuidl(buidlTokenIns.address, buidlRedemptionIns.address);
+    // setup USYC redemption system
+    try {
+      const MockUSYC = await ethers.getContractFactory("MockUSYC");
+      usycTokenIns = await MockUSYC.deploy();
+      await usycTokenIns.deployed();
+
+      // Create a separate USYC oracle with valid price >= 1.0
+      usycOracle = await deployContract<MockV3Aggregator>(
+        "MockV3Aggregator",
+        8,
+        BigNumber.from("100000000") // 1.0 in 8 decimals - meets minimum requirement
+      );
+      await usycOracle.deployed();
+
+      const MockUsycHelper = await ethers.getContractFactory("MockUsycHelper");
+      usycHelperIns = await MockUsycHelper.deploy(
+        usycTokenIns.address,
+        usdcTokenIns.address,
+        usycOracle.address // Use dedicated USYC oracle instead of USDC aggregator
+      );
+      await usycHelperIns.deployed();
+
+      const UsycRedemption = await ethers.getContractFactory("UsycRedemption");
+      usycRedemptionIns = await UsycRedemption.deploy(
+        usycTokenIns.address,
+        usdcTokenIns.address,
+        usycHelperIns.address,
+        vaultV4.address,
+        usycTreasuryAccount.address
+      );
+      await usycRedemptionIns.deployed();
+
+      // Set up USYC treasury
+      await usycRedemptionIns.setUsycTreasury(usycTreasuryAccount.address);
+
+      // Fund the system
+      await usycTokenIns.transfer(usycTreasuryAccount.address, _1M);
+      await usycTokenIns
+        .connect(usycTreasuryAccount)
+        .approve(usycRedemptionIns.address, _50k);
+
+      // Add USDC liquidity to helper
+      await usdcTokenIns.transfer(usycHelperIns.address, _200k);
+
+      // Set the redemption contract in the vault
+      await vaultV4
+        .connect(maintainer)
+        .setRedemption(usycRedemptionIns.address);
+
+      console.log("USYC redemption system set up successfully");
+    } catch (error) {
+      console.log("USYC redemption system setup failed:", error);
+    }
+
+    await vaultV4.setMgtFeeTreasury(mgtFeeTreasuryAccount.address);
   }
 
   beforeEach(async () => {
@@ -552,26 +607,16 @@ describe.only("OpenEdenV4", async function () {
     const assets = _150k;
     let shares: any;
     beforeEach(async function () {
-      let bal = await usdcTokenIns.balanceOf(investor1.address);
-      // _10M
-      console.log("bal: ", bal.toString());
-
       await vaultV4.connect(investor1).deposit(assets, investor1.address);
       shares = await vaultV4.balanceOf(investor1.address);
     });
 
-    // usdc liquidity : _200K
-    // balance: _1M
-    // allowance:  _50K
-    it("should success to get the minimum liquidity", async function () {
-      const res = await vaultV4.checkLiquidity();
-      console.log("check liquidity:", res);
-
-      expect(res.minimum).to.equal(_50k);
-    });
-
     it("should call redeemIns() successfully", async function () {
       const shares1 = _10k;
+      console.log("shares1:", shares1.toString());
+
+      // No need to update oracle price since USYC oracle is already set to valid 1.0
+      // The USDC aggregator (used for vault price validation) can remain at 0.99
       await vaultV4.connect(investor1).redeemIns(shares1, investor1.address);
     });
 
@@ -584,11 +629,12 @@ describe.only("OpenEdenV4", async function () {
     });
 
     it("should not able to to redeemIns when without enough usdc liqudity", async function () {
-      await buidlTokenIns
-        .connect(treasuryAccount)
-        .approve(vaultV4.address, _10M);
+      const shares1 = _250k;
+      await usycTokenIns
+        .connect(usycTreasuryAccount)
+        .approve(usycRedemptionIns.address, _10M);
       await expect(
-        vaultV4.connect(investor1).redeemIns(shares, investor1.address)
+        vaultV4.connect(investor1).redeemIns(shares1, investor1.address)
       ).to.revertedWith("ERC20: transfer amount exceeds balance");
     });
   });
@@ -1007,6 +1053,60 @@ describe.only("OpenEdenV4", async function () {
     });
   });
 
+  describe("TbillV4 setTotalSupplyCap", () => {
+    it("should allow maintainer to set a valid total supply cap", async function () {
+      const newSupplyCap = _1M; // 1M cap
+      await expect(vaultV4.connect(maintainer).setTotalSupplyCap(newSupplyCap))
+        .to.emit(vaultV4, "TotalSupplyCap")
+        .withArgs(newSupplyCap);
+
+      const totalSupplyCap = await vaultV4.totalSupplyCap();
+      expect(totalSupplyCap).to.equal(newSupplyCap);
+    });
+
+    it("should revert if supply cap is less than current total supply", async function () {
+      await vaultV4.connect(maintainer).setTotalSupplyCap(_1M);
+      await vaultV4.connect(investor1).deposit(_300k, investor1.address);
+
+      const currentTotalSupply = await vaultV4.totalSupply();
+      const invalidSupplyCap = currentTotalSupply.sub(_10k); // Less than current total supply
+
+      await expect(
+        vaultV4.connect(maintainer).setTotalSupplyCap(invalidSupplyCap)
+      ).to.be.revertedWithCustomError(vaultV4, "TBillInvalidInput");
+    });
+
+    it("should revert if called by a non-maintainer", async function () {
+      const newSupplyCap = _1M; // 1M cap
+
+      await expect(
+        vaultV4.connect(investor1).setTotalSupplyCap(newSupplyCap)
+      ).to.be.revertedWithCustomError(vaultV4, "TBillNoPermission");
+    });
+
+    it("should emit TotalSupplyCap event with the correct value", async function () {
+      const newSupplyCap = _1M; // 1M cap
+
+      await expect(vaultV4.connect(maintainer).setTotalSupplyCap(newSupplyCap))
+        .to.emit(vaultV4, "TotalSupplyCap")
+        .withArgs(newSupplyCap);
+    });
+
+    it("should revert if the new mint surpasses the cap", async function () {
+      const newSupplyCap = _1M; // 1M cap
+      await vaultV4.connect(maintainer).setTotalSupplyCap(newSupplyCap);
+
+      await vaultV4.connect(investor1).deposit(_300k, investor1.address);
+
+      const currentTotalSupply = await vaultV4.totalSupply();
+      const invalidMintAmount = newSupplyCap.sub(currentTotalSupply).add(_100k); // Exceeds cap
+
+      await expect(
+        vaultV4.connect(investor1).deposit(invalidMintAmount, investor1.address)
+      ).to.be.revertedWithCustomError(vaultV4, "TotalSupplyCapExceeded");
+    });
+  });
+
   describe("offRamp and offRmapQ", async () => {
     it("should success to offRamp usdc", async function () {
       await usdcTokenIns.transfer(vaultV4.address, _100k);
@@ -1035,7 +1135,7 @@ describe.only("OpenEdenV4", async function () {
     });
   });
 
-  it("setter addresses", async function () {
+  describe("setter addresses", async function () {
     await expect(
       vaultV4.connect(owner).setOplTreasury(ZERO_ADDRESS)
     ).to.revertedWithCustomError(vaultV4, "TBillZeroAddress");

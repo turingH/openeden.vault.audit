@@ -100,7 +100,7 @@ describe("OpenEden", async function () {
 
     usdcTokenIns = await deployContract<USDC>("USDC");
     timelock = await deployContract<TimelockController>(
-      "TimelockController",
+      "Timelock",
       delayTime,
       [timelockProposer.address],
       [timelockExecutor.address],
@@ -114,7 +114,19 @@ describe("OpenEden", async function () {
 
     iface = new ethers.utils.Interface(VaultV2.abi);
 
-    kycManagerIns = await deployContract<KycManager>("KycManager");
+    // Deploy KycManager as a proxy with proper initialization
+    const KycManagerFactory = await ethers.getContractFactory("KycManager");
+    kycManagerIns = (await upgrades.deployProxy(
+      KycManagerFactory,
+      [
+        owner.address, // admin
+        owner.address, // granter
+        owner.address, // revoker
+        owner.address, // banner
+        owner.address, // unbanner
+      ],
+      { kind: "uups" }
+    )) as KycManager;
     console.log(vaultParameters.firstDeposit);
     feeManager = await deployContract<FeeManager>(
       "FeeManager",

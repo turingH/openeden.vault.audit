@@ -18,8 +18,11 @@ interface IOpenEdenVault {
     );
 
     event SetOplTreasury(address oplTreasury);
+    event SetMgtFeeTreasury(address treasury);
     event UpdateTreasury(address newAddress);
     event UpdateQTreasury(address newAddress);
+    event SetBuidl(address buidl, address buidlRedemption);
+    event SetBuidlTreasury(address buidlTreasury);
 
     event SetFeeManager(address feeManager);
     event SetKycManager(address kycManager);
@@ -78,6 +81,15 @@ interface IOpenEdenVault {
         bytes32 prevId
     );
     event Cancel(uint256 len, uint256 totalShares);
+    event SetRedemption(address redemptionContract);
+    event TotalSupplyCap(uint256 supplyCap);
+    event BurnFrom(address indexed from, uint256 amount);
+    event MintTo(address indexed to, uint256 amount);
+    event ReIssue(
+        address indexed oldWallet,
+        address indexed newWallet,
+        uint256 amount
+    );
 
     error TBillNoPermission(address caller);
     error TBillInvalidateKyc(address sender, address receiver);
@@ -86,7 +98,12 @@ interface IOpenEdenVault {
     error TBillInvalidInput(uint256 amount);
     error TBillUpdateTooEarly(uint256 amount);
     error TBillZeroAddress();
-    error TBillReceiveUSDCFailed();
+    error TBillReceiveUSDCFailed(uint256 received, uint256 expected);
     error TBillInvalidPrice(int256 answer);
     error TBillPriceOutdated(uint256 updatedAt);
+    error TotalSupplyCapExceeded(
+        uint256 totalSupply,
+        uint256 share,
+        uint256 cap
+    );
 }
