@@ -612,11 +612,12 @@ describe("OpenEdenV4", async function () {
     });
 
     it("should call redeemIns() successfully", async function () {
-      const shares1 = _10k;
+      const shares1 = 112345678;
       console.log("shares1:", shares1.toString());
 
       // No need to update oracle price since USYC oracle is already set to valid 1.0
       // The USDC aggregator (used for vault price validation) can remain at 0.99
+      await usycOracle.updateAnswer(ethers.utils.parseUnits("1.2345678", 8));
       await vaultV4.connect(investor1).redeemIns(shares1, investor1.address);
     });
 

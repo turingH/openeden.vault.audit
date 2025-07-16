@@ -865,15 +865,20 @@ contract OpenEdenVaultV4 is
         uint256 _assets, // USDC
         uint256 _totalFee
     ) internal returns (uint256) {
-        // 1. transfer shares from sender to vault
+        // transfer shares from sender to vault
         _transfer(_sender, address(this), _shares);
-        uint256 usdcReceived = redemptionContract.redeem(_assets);
+
+        // there may have some rounding error, so add 1e6 to avoid it
+        uint256 usdcReceived = redemptionContract.redeem(_assets + 1e6);
 
         if (usdcReceived < _assets)
             revert TBillReceiveUSDCFailed(usdcReceived, _assets);
 
+        // using _assets instead of usdcReceived by intention
+        // the over-redeemed USDC will be off-ramped to the treasury
         uint256 _assetsToUser = _assets - _totalFee;
-        // 4. transfer assets to receiver
+
+        // transfer assets to receiver
         _withdraw(
             address(this),
             _receiver,
@@ -882,7 +887,7 @@ contract OpenEdenVaultV4 is
             _shares
         );
 
-        // 5. transfer fee to treasury
+        // transfer fee to treasury
         if (_totalFee > 0) {
             SafeERC20Upgradeable.safeTransfer(
                 IERC20Upgradeable(underlying),

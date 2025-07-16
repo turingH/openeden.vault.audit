@@ -8,7 +8,7 @@ require("solidity-coverage");
 
 import { HardhatUserConfig } from "hardhat/config";
 import * as dotenv from "dotenv";
-import { } from "colors.ts";
+import {} from "colors.ts";
 const colors = require("colors");
 colors.enable();
 dotenv.config();
